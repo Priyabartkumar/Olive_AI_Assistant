@@ -81,9 +81,13 @@ Every request is logged with:
 
 ### OSS Model Deployment
 The `deployment/` folder contains ready-to-deploy files for **HuggingFace Spaces**:
-- Uses Qwen2.5-0.5B-Instruct (small enough for free CPU tier)
-- Includes all features: memory, guardrails, tools
+- Uses **Qwen2.5-72B-Instruct via HuggingFace Inference API** (offloads inference to HF servers)
+- Space hosts only the lightweight Gradio UI (~200MB RAM, 2 dependencies)
+- Includes guardrails and tool use; conversation history via Gradio state
+- **Live URL**: [https://huggingface.co/spaces/PriyabartKr/Olive_AI_Assist](https://huggingface.co/spaces/PriyabartKr/Olive_AI_Assist)
 - See [`deployment/COST_LATENCY.md`](deployment/COST_LATENCY.md) for pricing & performance data
+
+> **Note**: The initial approach loaded Qwen2.5-0.5B locally on free CPU, but it was too small to follow the Olive persona and timed out on multi-turn conversations. Switching to the Inference API solved both issues — see COST_LATENCY.md for the full comparison.
 
 ## Setup
 
@@ -192,6 +196,7 @@ Scoring uses **LLM-as-judge** (Gemini evaluates both models' outputs on a 1-5 sc
 
 ## What I Would Improve With More Time
 
+### Features
 - **Streaming responses** — currently waits for full generation; streaming would improve UX
 - **ML-based guardrails** — upgrade from regex to a fine-tuned toxicity classifier (e.g., Llama Guard)
 - **Multi-session memory** — persist conversations across browser sessions
@@ -200,3 +205,9 @@ Scoring uses **LLM-as-judge** (Gemini evaluates both models' outputs on a 1-5 sc
 - **A/B testing UI** — side-by-side comparison mode in the chat interface
 - **Production observability** — integrate with Prometheus/Grafana or LangSmith
 - **Rate limiting** — protect deployed endpoints from abuse
+
+### Deployment Lessons Learned
+- **Vector memory in production** — ChromaDB + sentence-transformers had to be removed from the deployed version because embedding calls took 3-5s each on free CPU, causing timeouts on every second message. With more time, I would use a lightweight embedding API (e.g., HuggingFace Inference API for embeddings) to keep vector memory without the CPU cost.
+- **Graceful error handling** — the deployed app initially showed generic "Error" with no context when things failed. Better fallback behavior with informative messages and retry logic would improve the user experience.
+- **CI/CD for dependency compatibility** — Gradio 6.0 introduced breaking changes (removed `theme` from `Blocks()`, removed `type` from `Chatbot()`). Automated testing against the latest dependency versions would catch these before deployment.
+- **Local model quality vs. size** — the 0.5B model was too small to follow the Olive persona consistently (responded as a generic AI). A quantized 7B model on a GPU tier would be the sweet spot between quality and cost.
